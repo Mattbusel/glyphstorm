@@ -1,0 +1,332 @@
+"""The rest of the listing: age rating, review details, screenshots.
+
+Split from asc.py only because it is a second chunk of commands, not a second
+concern. Everything here needs the app record to already exist, which is the one
+step Apple's API refuses to do (`POST /v1/apps` returns 403 by design, so an app
+record has to be created once in the web UI).
+
+Usage:
+    python Store/listing.py age-rating
+    python Store/listing.py review-details
+    python Store/listing.py screenshots
+    python Store/listing.py finish        # everything that needs no binary
+"""
+
+import hashlib
+import os
+import sys
+from pathlib import Path
+
+import requests
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from asc import (  # noqa: E402
+    PRIMARY_LOCALE,
+    call,
+    ensure_version,
+    find_app,
+    push_metadata,
+    status,
+)
+
+
+def age_rating():
+    """Declare the age rating. Every category is none, which is what 4+ means."""
+    app = find_app()
+    if not app:
+        sys.exit("no app record yet")
+
+    infos = call("GET", f"/v1/apps/{app['id']}/appInfos", params={"limit": 10})
+    if not infos or not infos.get("data"):
+        print("  no app info found")
+        return
+    info_id = infos["data"][0]["id"]
+
+    detail = call(
+        "GET", f"/v1/appInfos/{info_id}", params={"include": "ageRatingDeclaration"}
+    )
+    declaration = None
+    for included in (detail or {}).get("included", []):
+        if included["type"] == "ageRatingDeclarations":
+            declaration = included
+    if not declaration:
+        print("  no age rating declaration attached to this app info")
+        return
+
+    # An abstract art tool with no content of its own. All of this is simply
+    # true, which is why the rating comes out 4+.
+    attributes = {
+        "violenceCartoonOrFantasy": "NONE",
+        "violenceRealistic": "NONE",
+        "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+        "profanityOrCrudeHumor": "NONE",
+        "matureOrSuggestiveThemes": "NONE",
+        "horrorOrFearThemes": "NONE",
+        "medicalOrTreatmentInformation": "NONE",
+        "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+        "gamblingSimulated": "NONE",
+        "sexualContentOrNudity": "NONE",
+        "sexualContentGraphicAndNudity": "NONE",
+        "contests": "NONE",
+        "unrestrictedWebAccess": False,
+        "gambling": False,
+    }
+
+    result = call(
+        "PATCH",
+        f"/v1/ageRatingDeclarations/{declaration['id']}",
+        {
+            "data": {
+                "type": "ageRatingDeclarations",
+                "id": declaration["id"],
+                "attributes": attributes,
+            }
+        },
+    )
+    print("  age rating declared (4+)" if result is not None else "  age rating failed")
+
+
+def review_details():
+    """Reviewer contact details, and a note saying how to drive the app."""
+    app = find_app()
+    if not app:
+        sys.exit("no app record yet")
+    version = ensure_version(app["id"])
+    if not version:
+        print("  could not resolve version 1.0")
+        return
+
+    attributes = {
+        "contactFirstName": "Matthew",
+        "contactLastName": "Busel",
+        "contactEmail": "mattbusel@gmail.com",
+        # No account, so nothing to sign in with. Saying so outright saves a
+        # round trip with a reviewer asking for test credentials.
+        "demoAccountRequired": False,
+        "notes": (
+            "No account or login is required.\n\n"
+            "Tap Choose Photo or Choose Video and pick any item. The picture is "
+            "rebuilt out of text characters that have weight and move. Use the "
+            "three Style buttons and the two sliders to change the effect, then "
+            "tap Export to render it and open the share sheet.\n\n"
+            "The app requests no permissions. It uses the system photo picker, "
+            "so it receives only the single item you select. All processing is "
+            "on device, nothing is uploaded, and no data is collected."
+        ),
+    }
+    phone = os.environ.get("ASC_CONTACT_PHONE", "").strip()
+    if phone:
+        attributes["contactPhone"] = phone
+
+    existing = call(
+        "GET",
+        f"/v1/appStoreVersions/{version['id']}/appStoreReviewDetail",
+        quiet=True,
+    )
+    if existing and existing.get("data"):
+        detail_id = existing["data"]["id"]
+        result = call(
+            "PATCH",
+            f"/v1/appStoreReviewDetails/{detail_id}",
+            {
+                "data": {
+                    "type": "appStoreReviewDetails",
+                    "id": detail_id,
+                    "attributes": attributes,
+                }
+            },
+        )
+    else:
+        result = call(
+            "POST",
+            "/v1/appStoreReviewDetails",
+            {
+                "data": {
+                    "type": "appStoreReviewDetails",
+                    "attributes": attributes,
+                    "relationships": {
+                        "appStoreVersion": {
+                            "data": {"type": "appStoreVersions", "id": version["id"]}
+                        }
+                    },
+                }
+            },
+        )
+    print("  review details set" if result is not None else "  review details failed")
+
+
+# Apple's display type for each accepted screenshot size, both orientations.
+DISPLAY_BY_SIZE = {
+    (1320, 2868): "APP_IPHONE_67",
+    (2868, 1320): "APP_IPHONE_67",
+    (1290, 2796): "APP_IPHONE_67",
+    (2796, 1290): "APP_IPHONE_67",
+    (1260, 2736): "APP_IPHONE_67",
+    (2736, 1260): "APP_IPHONE_67",
+    (2064, 2752): "APP_IPAD_PRO_129",
+    (2752, 2064): "APP_IPAD_PRO_129",
+    (2048, 2732): "APP_IPAD_PRO_129",
+    (2732, 2048): "APP_IPAD_PRO_129",
+}
+
+
+def screenshots():
+    """Upload every PNG under fastlane/screenshots.
+
+    Run after the CI screenshots job hands its artifact back. Files are matched
+    to a display type by pixel size, so nothing needs renaming, and anything
+    that is not an accepted size is reported rather than silently dropped.
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        sys.exit("pip install pillow")
+
+    app = find_app()
+    if not app:
+        sys.exit("no app record yet")
+    version = ensure_version(app["id"])
+    if not version:
+        sys.exit("could not resolve version 1.0")
+
+    root = Path(__file__).resolve().parent.parent / "fastlane" / "screenshots"
+    shots = sorted(p for p in root.rglob("*.png"))
+    if not shots:
+        sys.exit(f"no screenshots found under {root}")
+
+    localizations = call(
+        "GET",
+        f"/v1/appStoreVersions/{version['id']}/appStoreVersionLocalizations",
+        params={"limit": 50},
+    )
+    locale_id = None
+    for loc in (localizations or {}).get("data", []):
+        if loc["attributes"].get("locale") == PRIMARY_LOCALE:
+            locale_id = loc["id"]
+    if not locale_id:
+        sys.exit("no en-US localization yet; run `python Store/asc.py push-metadata`")
+
+    sets = call(
+        "GET",
+        f"/v1/appStoreVersionLocalizations/{locale_id}/appScreenshotSets",
+        params={"limit": 50},
+    )
+    set_ids = {
+        s["attributes"]["screenshotDisplayType"]: s["id"]
+        for s in (sets or {}).get("data", [])
+    }
+
+    uploaded = 0
+    for path in shots:
+        with Image.open(path) as image:
+            size = image.size
+        display = DISPLAY_BY_SIZE.get(size)
+        if not display:
+            print(f"  skip {path.name}: {size[0]}x{size[1]} is not an accepted size")
+            continue
+
+        if display not in set_ids:
+            made = call(
+                "POST",
+                "/v1/appScreenshotSets",
+                {
+                    "data": {
+                        "type": "appScreenshotSets",
+                        "attributes": {"screenshotDisplayType": display},
+                        "relationships": {
+                            "appStoreVersionLocalization": {
+                                "data": {
+                                    "type": "appStoreVersionLocalizations",
+                                    "id": locale_id,
+                                }
+                            }
+                        },
+                    }
+                },
+            )
+            if not made:
+                continue
+            set_ids[display] = made["data"]["id"]
+
+        blob = path.read_bytes()
+        reserved = call(
+            "POST",
+            "/v1/appScreenshots",
+            {
+                "data": {
+                    "type": "appScreenshots",
+                    "attributes": {"fileName": path.name, "fileSize": len(blob)},
+                    "relationships": {
+                        "appScreenshotSet": {
+                            "data": {
+                                "type": "appScreenshotSets",
+                                "id": set_ids[display],
+                            }
+                        }
+                    },
+                }
+            },
+        )
+        if not reserved:
+            continue
+
+        # Apple returns one or more signed PUT operations to push the bytes to,
+        # each covering a byte range of the file.
+        ok = True
+        for op in reserved["data"]["attributes"]["uploadOperations"]:
+            chunk = blob[op["offset"] : op["offset"] + op["length"]]
+            headers = {h["name"]: h["value"] for h in op.get("requestHeaders", [])}
+            put = requests.request(
+                op["method"], op["url"], headers=headers, data=chunk, timeout=180
+            )
+            if put.status_code >= 400:
+                print(f"  ! {path.name}: upload returned {put.status_code}")
+                ok = False
+        if not ok:
+            continue
+
+        # The commit. Until this lands, Apple treats the reservation as garbage.
+        done = call(
+            "PATCH",
+            f"/v1/appScreenshots/{reserved['data']['id']}",
+            {
+                "data": {
+                    "type": "appScreenshots",
+                    "id": reserved["data"]["id"],
+                    "attributes": {
+                        "uploaded": True,
+                        "sourceFileChecksum": hashlib.md5(blob).hexdigest(),
+                    },
+                }
+            },
+        )
+        if done is not None:
+            uploaded += 1
+            print(f"  {path.name} -> {display}")
+
+    print(f"{uploaded} screenshot(s) uploaded")
+
+
+def finish():
+    """Everything that does not need a compiled binary."""
+    print("metadata:")
+    push_metadata()
+    print("age rating:")
+    age_rating()
+    print("review details:")
+    review_details()
+    print()
+    status()
+
+
+COMMANDS = {
+    "age-rating": age_rating,
+    "review-details": review_details,
+    "screenshots": screenshots,
+    "finish": finish,
+}
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2 or sys.argv[1] not in COMMANDS:
+        sys.exit(f"usage: python Store/listing.py [{'|'.join(COMMANDS)}]")
+    COMMANDS[sys.argv[1]]()
