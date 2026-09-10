@@ -56,11 +56,11 @@ struct HomeView: View {
                 }
                 .padding(.bottom, 28)
 
-                Text("ASCII")
+                Text("GLYPH")
                     .font(.system(size: 52, weight: .black, design: .monospaced))
                     .kerning(6)
                     .foregroundStyle(Theme.ink)
-                Text("MOTION")
+                Text("STORM")
                     .font(.system(size: 52, weight: .black, design: .monospaced))
                     .kerning(6)
                     .foregroundStyle(Theme.cyan)

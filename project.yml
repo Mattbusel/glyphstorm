@@ -53,8 +53,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mattbusel.asciimotion
-        PRODUCT_NAME: ASCII Motion
-        INFOPLIST_KEY_CFBundleDisplayName: ASCII Motion
+        PRODUCT_NAME: Glyphstorm
+        INFOPLIST_KEY_CFBundleDisplayName: Glyphstorm
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Portrait only. The editor is a single column of controls under a
         # preview; there is no landscape design and shipping a broken one is a
@@ -74,7 +74,7 @@ targets:
     info:
       path: Resources/Info.plist
       properties:
-        CFBundleDisplayName: ASCII Motion
+        CFBundleDisplayName: Glyphstorm
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen:

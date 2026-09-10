@@ -1,4 +1,4 @@
-# ASCII Motion
+# Glyphstorm
 
 Photos and video, rebuilt out of text characters that have weight and move like it.
 
@@ -15,7 +15,7 @@ Four things. Everything else is automated.
 
 ```bash
 git add -A
-git commit -m "ASCII Motion v1"
+git commit -m "Glyphstorm v1"
 git remote add origin git@github.com:Mattbusel/ascii-motion.git
 git push -u origin main
 ```
@@ -54,7 +54,7 @@ submissions where the privacy URL does not load, so check it before submitting.
 
 Once, by hand, because the first record needs the bundle ID registered:
 
-- **Name:** ASCII Motion
+- **Name:** Glyphstorm
 - **Bundle ID:** `com.mattbusel.asciimotion` (register it under
   Certificates → Identifiers first)
 - **SKU:** `ascii-motion-1`

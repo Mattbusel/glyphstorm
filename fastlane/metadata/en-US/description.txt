@@ -1,4 +1,4 @@
-ASCII Motion rebuilds a photo or a video out of text characters, and then lets the characters move.
+Glyphstorm rebuilds a photo or a video out of text characters, and then lets the characters move.
 
 Most ASCII filters paste flat text over your picture. This one doesn't. Every character here is an object with weight, held in place by a spring, so when the field is disturbed the picture flexes, tears and pulls itself back together. Heavy characters lag. Light ones fly. The image stays readable the whole time because everything is trying to get home.
 

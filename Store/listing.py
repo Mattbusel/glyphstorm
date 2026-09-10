@@ -55,22 +55,41 @@ def age_rating():
 
     # An abstract art tool with no content of its own. All of this is simply
     # true, which is why the rating comes out 4+.
-    attributes = {
-        "violenceCartoonOrFantasy": "NONE",
-        "violenceRealistic": "NONE",
-        "violenceRealisticProlongedGraphicOrSadistic": "NONE",
-        "profanityOrCrudeHumor": "NONE",
-        "matureOrSuggestiveThemes": "NONE",
-        "horrorOrFearThemes": "NONE",
-        "medicalOrTreatmentInformation": "NONE",
-        "alcoholTobaccoOrDrugUseOrReferences": "NONE",
-        "gamblingSimulated": "NONE",
-        "sexualContentOrNudity": "NONE",
-        "sexualContentGraphicAndNudity": "NONE",
-        "contests": "NONE",
-        "unrestrictedWebAccess": False,
-        "gambling": False,
-    }
+    #
+    # The two lists matter: Apple types some of these as frequency enums and
+    # some as booleans, and sending the wrong shape fails with a message about a
+    # missing attribute rather than a wrong one. Apple also added eight fields
+    # in 2026 (messaging, health, parental controls, age assurance, advertising,
+    # user generated content, loot box, weapons) and rejects a payload that
+    # omits any of them, so the full set is always sent.
+    frequency = [
+        "violenceCartoonOrFantasy",
+        "violenceRealistic",
+        "violenceRealisticProlongedGraphicOrSadistic",
+        "profanityOrCrudeHumor",
+        "matureOrSuggestiveThemes",
+        "horrorOrFearThemes",
+        "medicalOrTreatmentInformation",
+        "alcoholTobaccoOrDrugUseOrReferences",
+        "gamblingSimulated",
+        "sexualContentOrNudity",
+        "sexualContentGraphicAndNudity",
+        "contests",
+        "gunsOrOtherWeapons",
+    ]
+    flags = [
+        "unrestrictedWebAccess",
+        "gambling",
+        "lootBox",
+        "userGeneratedContent",
+        "messagingAndChat",
+        "parentalControls",
+        "healthOrWellnessTopics",
+        "ageAssurance",
+        "advertising",
+    ]
+    attributes = {k: "NONE" for k in frequency}
+    attributes.update({k: False for k in flags})
 
     result = call(
         "PATCH",

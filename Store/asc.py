@@ -35,7 +35,7 @@ KEY_PATH = Path(
 )
 
 BUNDLE_ID = "com.mattbusel.asciimotion"
-APP_NAME = "ASCII Motion"
+APP_NAME = "Glyphstorm"
 SKU = "ascii-motion-1"
 PRIMARY_LOCALE = "en-US"
 
@@ -283,7 +283,10 @@ def push_metadata():
         "keywords": read_meta("keywords.txt"),
         "promotionalText": read_meta("promotional_text.txt"),
         "supportUrl": read_meta("support_url.txt"),
-        "whatsNew": read_meta("release_notes.txt"),
+        # whatsNew is deliberately absent. Apple rejects it on a first version
+        # with 409 "Attribute 'whatsNew' cannot be edited at this time": release
+        # notes only become editable once there is a version to have notes
+        # about. Add it back for 1.1.
     }
     payload = {k: v for k, v in payload.items() if v}
 
