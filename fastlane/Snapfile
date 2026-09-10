@@ -4,8 +4,7 @@
 # down for every smaller device itself, so capturing six sizes is five sizes of
 # wasted CI minutes.
 devices([
-  "iPhone 17 Pro Max",
-  "iPad Pro 13-inch (M4)"
+  "iPhone 17 Pro Max"
 ])
 
 languages(["en-US"])
@@ -18,4 +17,4 @@ clear_previous_screenshots(true)
 # correct once the drawable has actually presented. The test sleeps before each
 # capture for the same reason.
 override_status_bar(true)
-concurrent_simulators(false)
+concurrent_simulators(true)

@@ -131,7 +131,8 @@ final class EditorModel: ObservableObject {
     func prepare(with source: Source) {
         self.source = source
         if renderer == nil {
-            errorMessage = "This device cannot render the effect."
+            errorMessage = "Renderer unavailable: "
+                + (GlyphRenderer.lastFailure ?? "unknown")
             return
         }
         rebuildForPreview()

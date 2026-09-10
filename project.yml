@@ -44,7 +44,16 @@ targets:
     platform: iOS
 
     sources:
+      # .metal has to be assigned to the compile phase explicitly. XcodeGen does
+      # not infer it from the extension, so the shader was silently added as a
+      # plain file: the app built and linked perfectly, shipped with no
+      # default.metallib, and makeDefaultLibrary() returned nil at launch. The
+      # only visible symptom was the renderer refusing to start.
       - path: Sources
+        excludes:
+          - "**/*.metal"
+      - path: Sources/Engine/Shaders.metal
+        buildPhase: sources
       - path: Resources/PrivacyInfo.xcprivacy
         buildPhase: resources
       - path: Resources/Assets.xcassets
@@ -64,7 +73,9 @@ targets:
         # The app draws its own dark ground everywhere; the status bar has to
         # agree or the top of the screen flashes white on launch.
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
-        TARGETED_DEVICE_FAMILY: "1,2"
+        # iPhone only. Halves the screenshot matrix and drops the
+        # 13-inch iPad requirement entirely.
+        TARGETED_DEVICE_FAMILY: "1"
         SUPPORTS_MACCATALYST: NO
         # Metal shaders are compiled from Sources/Engine/Shaders.metal into the
         # default library the renderer looks up by name.

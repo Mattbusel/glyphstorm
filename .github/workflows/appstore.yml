@@ -18,6 +18,7 @@ on:
         default: dry_run
         type: choice
         options:
+          - compile       # build only, ~2 min, no simulator boot
           - screenshots   # capture only, download them as an artifact
           - dry_run       # build and upload everything, do not submit
           - release       # build, upload and submit for review
@@ -124,7 +125,7 @@ jobs:
             | xcpretty || exit 1
 
       - name: Capture screenshots
-        if: ${{ inputs.action == 'screenshots' || inputs.action == 'dry_run' || inputs.action == 'release' }}
+        if: ${{ inputs.action != 'compile' }}
         run: fastlane screenshots
 
       - name: Upload screenshots as an artifact

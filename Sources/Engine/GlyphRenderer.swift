@@ -41,13 +41,41 @@ final class GlyphRenderer: NSObject {
     /// it reads as a chosen colour rather than as a switched-off screen.
     var background: SIMD4<Float> = SIMD4<Float>(0.043, 0.039, 0.063, 1.0)
 
+    /// Why the renderer could not start, if it could not.
+    ///
+    /// A single `guard` over five optionals reports "it failed" and nothing
+    /// else, which is useless when the only way to run the app is a ten minute
+    /// CI job. Each stage now names itself, and the name reaches the alert.
+    static private(set) var lastFailure: String?
+
     init?(device: MTLDevice) {
-        guard let queue = device.makeCommandQueue(),
-              let atlas = FontAtlas(device: device),
-              let library = device.makeDefaultLibrary(),
-              let vertexFunction = library.makeFunction(name: "glyph_vertex"),
-              let fragmentFunction = library.makeFunction(name: "glyph_fragment")
-        else { return nil }
+        func fail(_ why: String) -> GlyphRenderer? {
+            GlyphRenderer.lastFailure = why
+            return nil
+        }
+
+        guard let queue = device.makeCommandQueue() else {
+            _ = fail("no command queue")
+            return nil
+        }
+        guard let atlas = FontAtlas(device: device) else {
+            _ = fail("font atlas failed to build")
+            return nil
+        }
+        guard let library = device.makeDefaultLibrary() else {
+            // Almost always means Shaders.metal was not compiled into the
+            // target, rather than anything wrong with the device.
+            _ = fail("no default Metal library (shader not compiled in?)")
+            return nil
+        }
+        guard let vertexFunction = library.makeFunction(name: "glyph_vertex") else {
+            _ = fail("glyph_vertex missing from library")
+            return nil
+        }
+        guard let fragmentFunction = library.makeFunction(name: "glyph_fragment") else {
+            _ = fail("glyph_fragment missing from library")
+            return nil
+        }
 
         let descriptor = MTLRenderPipelineDescriptor()
         descriptor.vertexFunction = vertexFunction
@@ -65,6 +93,7 @@ final class GlyphRenderer: NSObject {
         attachment.destinationAlphaBlendFactor = .oneMinusSourceAlpha
 
         guard let pipeline = try? device.makeRenderPipelineState(descriptor: descriptor) else {
+            _ = fail("pipeline state failed to compile")
             return nil
         }
 
@@ -76,6 +105,7 @@ final class GlyphRenderer: NSObject {
         samplerDescriptor.sAddressMode = .clampToEdge
         samplerDescriptor.tAddressMode = .clampToEdge
         guard let sampler = device.makeSamplerState(descriptor: samplerDescriptor) else {
+            _ = fail("sampler state failed")
             return nil
         }
 
