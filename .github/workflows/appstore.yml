@@ -1,0 +1,110 @@
+name: App Store
+
+# The whole pipeline, on a rented Mac.
+#
+# Nothing here needs a Mac in anyone's hands. GitHub provides the macOS runner,
+# the App Store Connect API key does the authenticating, and Xcode mints its own
+# signing certificate on the fly. The repo is authored on Windows and never
+# opened in Xcode by a human.
+
+on:
+  # Deliberately manual. An automatic submit on every push to main is how you
+  # end up sending Apple four builds in an afternoon.
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "What to do"
+        required: true
+        default: dry_run
+        type: choice
+        options:
+          - screenshots   # capture only, download them as an artifact
+          - dry_run       # build and upload everything, do not submit
+          - release       # build, upload and submit for review
+
+jobs:
+  ship:
+    # macos-15 or newer carries Xcode 26, which Apple has required for all new
+    # submissions since 28 April 2026. Pinned rather than left on latest so a
+    # runner image change cannot silently drop us onto an SDK Apple rejects.
+    runs-on: macos-15
+    timeout-minutes: 90
+
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+      DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+      # Fastlane writes far more usefully when it knows it is not a terminal.
+      FASTLANE_SKIP_UPDATE_CHECK: "1"
+      FASTLANE_HIDE_CHANGELOG: "1"
+      LC_ALL: en_US.UTF-8
+      LANG: en_US.UTF-8
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        run: |
+          ls /Applications | grep -i xcode
+          sudo xcode-select -s /Applications/Xcode_26.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Install xcodegen and fastlane
+        run: |
+          brew install xcodegen
+          gem install fastlane --no-document
+
+      # SnapshotHelper.swift defines setupSnapshot() and snapshot(), which the
+      # UI test calls. It ships with fastlane rather than being a package, so it
+      # is fetched into the test target instead of committed and left to rot at
+      # whatever version it was copied at.
+      - name: Fetch fastlane's SnapshotHelper
+        run: |
+          fastlane snapshot init || true
+          if [ ! -f Tests/ScreenshotTests/SnapshotHelper.swift ]; then
+            cp "$(gem environment gemdir)"/gems/fastlane-*/snapshot/lib/assets/SnapshotHelper.swift               Tests/ScreenshotTests/SnapshotHelper.swift
+          fi
+          test -f Tests/ScreenshotTests/SnapshotHelper.swift
+
+      - name: Generate the Xcode project
+        run: xcodegen generate
+
+      # Split out from the fastlane lanes so a compile error is reported as a
+      # compile error, rather than as a screenshot lane that failed for reasons
+      # you have to read four hundred lines of log to find.
+      - name: Build for simulator (compile check)
+        run: |
+          xcodebuild build \
+            -project ASCIIMotion.xcodeproj \
+            -scheme ASCIIMotion \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty || exit 1
+
+      - name: Capture screenshots
+        if: ${{ inputs.action == 'screenshots' || inputs.action == 'dry_run' || inputs.action == 'release' }}
+        run: fastlane screenshots
+
+      - name: Upload screenshots as an artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: fastlane/screenshots/**/*.png
+          if-no-files-found: warn
+
+      - name: Build, upload and submit
+        if: ${{ inputs.action == 'dry_run' || inputs.action == 'release' }}
+        run: fastlane ${{ inputs.action }}
+
+      - name: Keep the build log
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          path: |
+            ~/Library/Logs/gym
+            ~/Library/Logs/snapshot
+            fastlane/report.xml
+          if-no-files-found: ignore

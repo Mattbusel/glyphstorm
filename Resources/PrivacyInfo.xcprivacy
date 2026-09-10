@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  ASCII Motion privacy manifest.
+
+	  Every value here is empty or false, and that is the accurate answer rather
+	  than a convenient one. The app has no network layer of any kind: there is
+	  no analytics SDK, no crash reporter, no ads, no accounts, and no server to
+	  talk to. A photo or video is read through the system picker, converted on
+	  the device, and written back out through the share sheet. Nothing leaves
+	  the device except by the user's own explicit share.
+
+	  NSPrivacyAccessedAPITypes is empty because the app calls none of the
+	  Required Reason APIs. In particular it does not use UserDefaults, which is
+	  the one most apps trip over: v1 keeps no settings between launches, so
+	  there is nothing to store. If persistence is ever added, this file needs
+	  NSPrivacyAccessedAPICategoryUserDefaults with reason CA92.1 or the upload
+	  will be rejected before a human sees it.
+	-->
+	<key>NSPrivacyTracking</key>
+	<false/>
+
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array/>
+</dict>
+</plist>

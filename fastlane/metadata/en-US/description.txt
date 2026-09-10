@@ -1,0 +1,26 @@
+ASCII Motion rebuilds a photo or a video out of text characters, and then lets the characters move.
+
+Most ASCII filters paste flat text over your picture. This one doesn't. Every character here is an object with weight, held in place by a spring, so when the field is disturbed the picture flexes, tears and pulls itself back together. Heavy characters lag. Light ones fly. The image stays readable the whole time because everything is trying to get home.
+
+HOW IT WORKS
+
+1. Choose a photo or a video.
+2. Pick a motion: Fluid, Burst or Drift.
+3. Set how much movement you want, and how big the characters are.
+4. Export, and share the result anywhere.
+
+THREE MOTIONS
+
+Fluid - currents run through the picture, like something suspended in water.
+Burst - a shockwave from the centre that the image keeps pulling itself back from, so it breathes.
+Drift - every character wanders off on its own slow errand and the picture never quite settles.
+
+VIDEO WORKS TOO
+
+Feed it a video and the characters chase the moving image instead of being redrawn each frame, so the motion of your footage and the motion of the field happen at the same time.
+
+BUILT TO BE SIMPLE
+
+Two screens. No account, no sign-up, no subscription. Everything runs on your device, nothing is uploaded, and nothing is collected. The app never even asks for photo library access, because it uses the system picker and only ever sees the one file you choose.
+
+One purchase. That's it.

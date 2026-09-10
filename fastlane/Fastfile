@@ -1,0 +1,133 @@
+# ASCII Motion — App Store pipeline.
+#
+# Everything from a clean checkout to "Waiting for Review", with no Mac in
+# anyone's hands. The one thing a human still does is push a commit.
+#
+# Secrets this expects in the environment (GitHub Actions secrets):
+#
+#   ASC_KEY_ID        the App Store Connect API key id     (e.g. 7ZMV4Z7XB8)
+#   ASC_ISSUER_ID     the issuer uuid from the Keys page
+#   ASC_KEY_CONTENT   the contents of the AuthKey_XXXX.p8, base64 encoded
+#   DEVELOPMENT_TEAM  the ten character team id
+#
+# The .p8 is never committed. It is decoded into memory by the api key action
+# and used to mint a short-lived token per run.
+
+default_platform(:ios)
+
+APP_IDENTIFIER = "com.mattbusel.asciimotion"
+SCHEME = "ASCIIMotion"
+
+platform :ios do
+  # Load the API key once and hand it to everything downstream.
+  #
+  # `in_house: false` matters: it is what tells fastlane this is a normal paid
+  # developer account rather than an enterprise one, and getting it wrong
+  # produces an authentication error that says nothing useful.
+  def asc_key
+    app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_KEY_CONTENT"),
+      is_key_content_base64: true,
+      in_house: false
+    )
+  end
+
+  desc "Generate the Xcode project from project.yml"
+  lane :generate do
+    # The .xcodeproj is not committed. It is generated here so the repo can be
+    # authored on any OS and there is never a merge conflict in a pbxproj.
+    sh("cd .. && xcodegen generate")
+  end
+
+  desc "Capture App Store screenshots in the simulator"
+  lane :screenshots do
+    generate
+    capture_screenshots(
+      scheme: SCHEME,
+      # Snapfile lists the devices. Kept there rather than here so the device
+      # list is one line to change when Apple retires a size class.
+      clean: false,
+      concurrent_simulators: false
+    )
+  end
+
+  desc "Build a signed App Store archive"
+  lane :build do
+    generate
+    api_key = asc_key
+
+    # Bump the build number to one above whatever App Store Connect already has,
+    # so a rebuild of the same version never collides.
+    increment_build_number(
+      build_number: latest_testflight_build_number(
+        api_key: api_key,
+        app_identifier: APP_IDENTIFIER,
+        initial_build_number: 0
+      ) + 1,
+      xcodeproj: "ASCIIMotion.xcodeproj"
+    )
+
+    build_app(
+      scheme: SCHEME,
+      export_method: "app-store",
+      # This is the flag that lets a clean runner sign at all: Xcode creates the
+      # certificate and provisioning profile itself, authenticated by the API
+      # key, instead of expecting them to already be in a keychain.
+      xcargs: "-allowProvisioningUpdates",
+      export_options: {
+        signingStyle: "automatic",
+        teamID: ENV.fetch("DEVELOPMENT_TEAM")
+      },
+      output_directory: "build",
+      output_name: "ASCIIMotion.ipa"
+    )
+  end
+
+  desc "Upload the binary, metadata and screenshots, then submit for review"
+  lane :release do
+    screenshots
+    build
+
+    upload_to_app_store(
+      api_key: asc_key,
+      app_identifier: APP_IDENTIFIER,
+      ipa: "build/ASCIIMotion.ipa",
+      # Everything below comes out of fastlane/metadata and fastlane/screenshots.
+      skip_metadata: false,
+      skip_screenshots: false,
+      # Submit, rather than leaving it sitting in Connect for a human to press
+      # the button on. This is the last step and it is the irreversible one.
+      submit_for_review: true,
+      automatic_release: false,
+      force: true,
+      precheck_include_in_app_purchases: false,
+      submission_information: {
+        # No ads, no tracking, no third party analytics, nothing exported. All
+        # true, and all of it is what makes the review short.
+        add_id_info_uses_idfa: false,
+        export_compliance_uses_encryption: false,
+        content_rights_contains_third_party_content: false
+      }
+    )
+  end
+
+  desc "Everything except the irreversible last step"
+  lane :dry_run do
+    screenshots
+    build
+    upload_to_app_store(
+      api_key: asc_key,
+      app_identifier: APP_IDENTIFIER,
+      ipa: "build/ASCIIMotion.ipa",
+      skip_metadata: false,
+      skip_screenshots: false,
+      # The difference between this lane and `release`. Everything lands in App
+      # Store Connect and nothing is submitted, so the listing can be looked at
+      # before it goes to Apple.
+      submit_for_review: false,
+      force: true
+    )
+  end
+end

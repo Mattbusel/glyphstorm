@@ -1,0 +1,16 @@
+# Anything not expressed as a file in fastlane/metadata lives here.
+app_identifier("com.mattbusel.asciimotion")
+
+# Paid app. The tier is set on the app record; this asserts it is not free so a
+# mistake in Connect shows up as a mismatch rather than as a free launch.
+price_tier(8)
+
+# Filled from fastlane/metadata/en-US/*.txt automatically. Listed here so it is
+# obvious what is being uploaded.
+copyright("#{Time.now.year} Matthew Busel")
+
+submission_information({
+  add_id_info_uses_idfa: false,
+  export_compliance_uses_encryption: false,
+  content_rights_contains_third_party_content: false
+})

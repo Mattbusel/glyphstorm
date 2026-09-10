@@ -1,0 +1,4 @@
+app_identifier("com.mattbusel.asciimotion")
+# No apple_id or team_id here on purpose. Authentication is entirely by App
+# Store Connect API key, supplied through the environment, so this file carries
+# no account details and is safe in a public repo.

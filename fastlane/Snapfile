@@ -1,0 +1,21 @@
+# Only the two size classes Apple still requires.
+#
+# Since 2026 the store takes one iPhone set and one iPad set and scales them
+# down for every smaller device itself, so capturing six sizes is five sizes of
+# wasted CI minutes.
+devices([
+  "iPhone 17 Pro Max",
+  "iPad Pro 13-inch (M4)"
+])
+
+languages(["en-US"])
+
+scheme("ASCIIMotion")
+output_directory("./fastlane/screenshots")
+clear_previous_screenshots(true)
+
+# The app draws with Metal, and a simulator screenshot of a Metal view is only
+# correct once the drawable has actually presented. The test sleeps before each
+# capture for the same reason.
+override_status_bar(true)
+concurrent_simulators(false)
