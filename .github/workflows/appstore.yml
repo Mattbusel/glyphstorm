@@ -124,6 +124,25 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty || exit 1
 
+      # The definitive check that the shader shipped.
+      #
+      # A missing default.metallib does not fail the build: the app compiles,
+      # links and launches, and only refuses to render once it is running. That
+      # cost a full ten minute screenshot cycle to discover, so it is asserted
+      # here in two seconds instead.
+      - name: Verify the shader shipped
+        run: |
+          app=$(find ~/Library/Developer/Xcode/DerivedData -name "Glyphstorm.app"                  -path "*iphonesimulator*" 2>/dev/null | head -1)
+          if [ -z "$app" ]; then echo "no built app found"; exit 1; fi
+          echo "app bundle: $app"
+          ls -1 "$app"
+          if [ -f "$app/default.metallib" ]; then
+            echo "OK: default.metallib present"
+          else
+            echo "FAIL: default.metallib missing, the shader was not compiled in"
+            exit 1
+          fi
+
       - name: Capture screenshots
         if: ${{ inputs.action != 'compile' }}
         run: fastlane screenshots
