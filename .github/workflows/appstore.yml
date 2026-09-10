@@ -46,9 +46,32 @@ jobs:
 
       - name: Select Xcode 26
         run: |
-          ls /Applications | grep -i xcode
-          sudo xcode-select -s /Applications/Xcode_26.app/Contents/Developer
+          # Pick the newest Xcode 26.x that is actually usable.
+          #
+          # Not hardcoded: the runner image carries /Applications/Xcode_26.app,
+          # but it is a stub with no Contents/Developer inside, so selecting it
+          # fails with "invalid developer directory" while `ls` happily lists
+          # it. The real installs are the point releases. Checking for the
+          # Developer directory is the only reliable test, and picking the
+          # newest means a runner image update cannot strand us on an SDK
+          # Apple has stopped accepting.
+          chosen=""
+          for app in $(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -Vr); do
+            if [ -d "$app/Contents/Developer" ]; then chosen="$app"; break; fi
+          done
+          if [ -z "$chosen" ]; then
+            echo "no usable Xcode 26 on this runner:"; ls /Applications | grep -i xcode
+            exit 1
+          fi
+          echo "using $chosen"
+          sudo xcode-select -s "$chosen/Contents/Developer"
           xcodebuild -version
+
+      - name: Show available simulators
+        run: |
+          # So a wrong device name in Snapfile is a readable log line rather
+          # than an opaque "destination not found".
+          xcrun simctl list devicetypes | grep -E 'iPhone|iPad' | tail -25
 
       - name: Install xcodegen and fastlane
         run: |
