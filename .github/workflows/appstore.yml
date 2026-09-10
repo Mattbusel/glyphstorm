@@ -111,6 +111,11 @@ jobs:
       # you have to read four hundred lines of log to find.
       - name: Build for simulator (compile check)
         run: |
+          # pipefail is load bearing. Without it the exit status of this
+          # pipeline is xcpretty's, not xcodebuild's, so a build with hard
+          # compile errors in it reported success and the failure only surfaced
+          # ten minutes later inside the screenshot run.
+          set -o pipefail
           xcodebuild build \
             -project ASCIIMotion.xcodeproj \
             -scheme ASCIIMotion \

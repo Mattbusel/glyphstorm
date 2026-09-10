@@ -45,8 +45,11 @@ vertex Varying glyph_vertex(uint vid [[vertex_id]],
     // A glyph cell is taller than wide; the atlas cell is square, so the quad
     // is drawn square and the *grid* does the narrowing. Drawing a narrow quad
     // instead would squash the letterform itself.
-    float half = g.size * 0.5;
-    float2 pointPos = g.position + (corner - 0.5) * (half * 2.0);
+    // Not named `half`: that is a built-in type in Metal (half-precision
+    // float), so `float half = ...` parses as two type specifiers and fails
+    // with "Cannot combine with previous 'float' declaration specifier".
+    float halfSize = g.size * 0.5;
+    float2 pointPos = g.position + (corner - 0.5) * (halfSize * 2.0);
 
     // View points to clip space. y is flipped because UIKit's origin is top
     // left and Metal's clip space has y up.
