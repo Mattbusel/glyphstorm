@@ -22,3 +22,4 @@ AuthKey_*
 *.cer
 *.certSigningRequest
 .env
+Store/private/
