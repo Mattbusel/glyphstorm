@@ -1,9 +1,15 @@
 # Anything not expressed as a file in fastlane/metadata lives here.
 app_identifier("com.mattbusel.asciimotion")
 
-# Paid app. The tier is set on the app record; this asserts it is not free so a
-# mistake in Connect shows up as a mismatch rather than as a free launch.
-price_tier(8)
+# No price_tier here, deliberately.
+#
+# It makes deliver PATCH the app with `availableInNewTerritories`, `prices` and
+# `availableTerritories`, none of which are attributes of `apps` any more. Apple
+# rejects the whole request and the upload dies after the binary has already
+# been built and signed.
+#
+# Pricing is set through the modern appPriceSchedules API instead, by
+# Store/listing.py, and is already live at $7.99.
 
 # Filled from fastlane/metadata/en-US/*.txt automatically. Listed here so it is
 # obvious what is being uploaded.
