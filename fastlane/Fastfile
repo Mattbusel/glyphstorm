@@ -58,24 +58,41 @@ platform :ios do
     generate
     api_key = asc_key
 
-    # Bump the build number to one above whatever App Store Connect already has,
-    # so a rebuild of the same version never collides.
-    increment_build_number(
-      build_number: latest_testflight_build_number(
-        api_key: api_key,
-        app_identifier: APP_IDENTIFIER,
-        initial_build_number: 0
-      ) + 1,
-      xcodeproj: "ASCIIMotion.xcodeproj"
-    )
+    # One above whatever App Store Connect already has, so a rebuild of the
+    # same version never collides.
+    #
+    # Passed as a build setting rather than through increment_build_number:
+    # that action drives agvtool, which needs project settings this project
+    # does not have, and it failed with the memorable `Cannot find
+    # "ASCIIMotion.xcodeproj/../YES"`.
+    next_build = latest_testflight_build_number(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      initial_build_number: 0
+    ) + 1
+    UI.message("building as build number #{next_build}")
+
+    # The API key has to reach xcodebuild itself, not just fastlane.
+    #
+    # -allowProvisioningUpdates lets Xcode create the certificate and profile,
+    # but on a clean runner there is no signed-in account to create them *as*,
+    # so it fails with "No Accounts: Add a new account in Accounts settings"
+    # and then "No profiles were found". These three flags are what authenticate
+    # it, and they are why no certificate ever has to be exported from anyone's
+    # keychain.
+    key_path = ENV.fetch("ASC_KEY_PATH")
+    signing_args = [
+      "-allowProvisioningUpdates",
+      "-authenticationKeyPath #{key_path}",
+      "-authenticationKeyID #{ENV.fetch('ASC_KEY_ID')}",
+      "-authenticationKeyIssuerID #{ENV.fetch('ASC_ISSUER_ID')}",
+      "CURRENT_PROJECT_VERSION=#{next_build}",
+    ].join(" ")
 
     build_app(
       scheme: SCHEME,
       export_method: "app-store",
-      # This is the flag that lets a clean runner sign at all: Xcode creates the
-      # certificate and provisioning profile itself, authenticated by the API
-      # key, instead of expecting them to already be in a keychain.
-      xcargs: "-allowProvisioningUpdates",
+      xcargs: signing_args,
       export_options: {
         signingStyle: "automatic",
         teamID: ENV.fetch("DEVELOPMENT_TEAM")
@@ -87,7 +104,14 @@ platform :ios do
 
   desc "Upload the binary, metadata and screenshots, then submit for review"
   lane :release do
-    screenshots
+    # Deliberately does not re-capture.
+    #
+    # fastlane/screenshots is committed, so the images that ship are the exact
+    # ones that were reviewed and approved rather than a fresh set nobody has
+    # looked at. It also takes ten minutes off every retry of the signing step,
+    # which matters when signing is the part that goes wrong.
+    #
+    # Run the `screenshots` action to refresh them after a UI change.
     build
 
     upload_to_app_store(
@@ -115,7 +139,6 @@ platform :ios do
 
   desc "Everything except the irreversible last step"
   lane :dry_run do
-    screenshots
     build
     upload_to_app_store(
       api_key: asc_key,

@@ -155,6 +155,19 @@ jobs:
           path: fastlane/screenshots/**/*.png
           if-no-files-found: warn
 
+      # xcodebuild reads the signing key from a file path, not from an
+      # environment variable, so the base64 secret is materialised here. Written
+      # to RUNNER_TEMP, which is wiped when the job ends and is never inside the
+      # checkout, so it cannot be committed by accident.
+      - name: Write the signing key to disk
+        if: ${{ inputs.action == 'dry_run' || inputs.action == 'release' }}
+        run: |
+          echo "$ASC_KEY_CONTENT" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/AuthKey.p8"
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+          # Size only. Never the contents.
+          echo "key written, $(wc -c < "$RUNNER_TEMP/AuthKey.p8") bytes"
+
       - name: Build, upload and submit
         if: ${{ inputs.action == 'dry_run' || inputs.action == 'release' }}
         run: fastlane ${{ inputs.action }}
