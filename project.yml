@@ -112,6 +112,12 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mattbusel.asciimotion.uitests
         TEST_TARGET_NAME: ASCIIMotion
+        # A test bundle still has to be signed, and signing needs an Info.plist.
+        # The app target has an explicit one; this target had neither an
+        # explicit plist nor generation turned on, so every test run died with
+        # "Cannot code sign because the target does not have an Info.plist file"
+        # while the app itself compiled perfectly.
+        GENERATE_INFOPLIST_FILE: YES
 
 schemes:
   ASCIIMotion:
