@@ -12,6 +12,11 @@ final class ScreenshotTests: XCTestCase {
         continueAfterFailure = false
     }
 
+    // @MainActor because SnapshotHelper's setupSnapshot and snapshot are both
+    // main actor isolated, and calling them from a plain nonisolated test method
+    // is a hard compile error under Swift 6's concurrency checking rather than a
+    // warning.
+    @MainActor
     func testCaptureAppStoreScreenshots() throws {
         let app = XCUIApplication()
         setupSnapshot(app)
@@ -45,6 +50,7 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
+    @MainActor
     private func tapStyle(_ app: XCUIApplication, _ label: String) {
         let button = app.buttons[label]
         if button.waitForExistence(timeout: 5) {
