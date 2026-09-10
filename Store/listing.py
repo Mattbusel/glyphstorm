@@ -326,6 +326,106 @@ def screenshots():
     print(f"{uploaded} screenshot(s) uploaded")
 
 
+def price(amount: str = "7.99"):
+    """Set the price schedule. Base territory USA, one manual price, no end date."""
+    app = find_app()
+    if not app:
+        sys.exit("no app record yet")
+    points = call(
+        "GET",
+        f"/v1/apps/{app['id']}/appPricePoints",
+        params={"filter[territory]": "USA", "limit": 200},
+    )
+    point = next(
+        (
+            d["id"]
+            for d in (points or {}).get("data", [])
+            if d["attributes"].get("customerPrice") == amount
+        ),
+        None,
+    )
+    if not point:
+        sys.exit(f"no USA price point at {amount}")
+
+    result = call(
+        "POST",
+        "/v1/appPriceSchedules",
+        {
+            "data": {
+                "type": "appPriceSchedules",
+                "relationships": {
+                    "app": {"data": {"type": "apps", "id": app["id"]}},
+                    "baseTerritory": {"data": {"type": "territories", "id": "USA"}},
+                    "manualPrices": {"data": [{"type": "appPrices", "id": "${p1}"}]},
+                },
+            },
+            "included": [
+                {
+                    "type": "appPrices",
+                    "id": "${p1}",
+                    "attributes": {"startDate": None, "endDate": None},
+                    "relationships": {
+                        "appPricePoint": {
+                            "data": {"type": "appPricePoints", "id": point}
+                        }
+                    },
+                }
+            ],
+        },
+    )
+    print(f"  price set to ${amount}" if result is not None else "  price failed")
+
+
+def categories():
+    """Primary and secondary category, and the content rights declaration.
+
+    Content rights lives on the app resource, not on appInfo: sending it to
+    appInfo returns 409 "unknown attribute", which reads like the value is wrong
+    rather than the address.
+    """
+    app = find_app()
+    if not app:
+        sys.exit("no app record yet")
+
+    call(
+        "PATCH",
+        f"/v1/apps/{app['id']}",
+        {
+            "data": {
+                "type": "apps",
+                "id": app["id"],
+                "attributes": {
+                    "contentRightsDeclaration": "DOES_NOT_USE_THIRD_PARTY_CONTENT"
+                },
+            }
+        },
+    )
+
+    infos = call("GET", f"/v1/apps/{app['id']}/appInfos", params={"limit": 10})
+    if not infos or not infos.get("data"):
+        return
+    info_id = infos["data"][0]["id"]
+    result = call(
+        "PATCH",
+        f"/v1/appInfos/{info_id}",
+        {
+            "data": {
+                "type": "appInfos",
+                "id": info_id,
+                "relationships": {
+                    "primaryCategory": {
+                        "data": {"type": "appCategories", "id": "PHOTO_AND_VIDEO"}
+                    },
+                    "secondaryCategory": {
+                        "data": {"type": "appCategories", "id": "GRAPHICS_AND_DESIGN"}
+                    },
+                },
+            }
+        },
+    )
+    print("  categories set" if result is not None else "  categories failed")
+
+
 def finish():
     """Everything that does not need a compiled binary."""
     print("metadata:")
@@ -334,6 +434,10 @@ def finish():
     age_rating()
     print("review details:")
     review_details()
+    print("categories:")
+    categories()
+    print("price:")
+    price()
     print()
     status()
 
@@ -342,6 +446,8 @@ COMMANDS = {
     "age-rating": age_rating,
     "review-details": review_details,
     "screenshots": screenshots,
+    "price": price,
+    "categories": categories,
     "finish": finish,
 }
 
