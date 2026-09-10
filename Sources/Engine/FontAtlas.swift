@@ -58,29 +58,51 @@ final class FontAtlas {
         let n = Ramp.count
         let cols = 8
         let rows = Int(ceil(Double(n) / Double(cols)))
-        let cell = FontAtlas.cellPixels
+        let cell = Int(FontAtlas.cellPixels)
+        let width = cell * cols
+        let height = cell * rows
 
-        let size = CGSize(width: cell * CGFloat(cols), height: cell * CGFloat(rows))
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = 1
-        format.opaque = false
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        // Drawn into a byte buffer and uploaded by hand rather than going
+        // through MTKTextureLoader.
+        //
+        // The loader version failed on the simulator and reported nothing but
+        // nil, which cost a full screenshot cycle to even locate. It negotiates
+        // pixel formats and storage modes on your behalf, and `.private`
+        // storage in particular is not reliably supported there. Doing it
+        // manually is twenty more lines and has exactly one behaviour on every
+        // device: a known RGBA8 buffer, copied into a shared texture.
+        let bytesPerRow = width * 4
+        var pixels = [UInt8](repeating: 0, count: bytesPerRow * height)
 
-        // A monospace face, so every cell is filled the same way and the grid
-        // does not wobble. The system monospaced font is guaranteed present,
-        // which a bundled font file would not be without shipping it.
-        let font = UIFont.monospacedSystemFont(ofSize: cell * 0.78, weight: .medium)
+        let font = UIFont.monospacedSystemFont(ofSize: FontAtlas.cellPixels * 0.78, weight: .medium)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            // White, so the fragment shader can tint it to any colour by
+            // multiplying. A coloured atlas could only ever be one palette.
+            .foregroundColor: UIColor.white,
+        ]
 
-        let image = renderer.image { ctx in
-            ctx.cgContext.setFillColor(UIColor.clear.cgColor)
-            ctx.cgContext.fill(CGRect(origin: .zero, size: size))
+        let drew: Bool = pixels.withUnsafeMutableBytes { raw -> Bool in
+            guard let base = raw.baseAddress,
+                  let ctx = CGContext(
+                      data: base,
+                      width: width,
+                      height: height,
+                      bitsPerComponent: 8,
+                      bytesPerRow: bytesPerRow,
+                      space: CGColorSpaceCreateDeviceRGB(),
+                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                  )
+            else { return false }
 
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: font,
-                // White, so the fragment shader can tint it to any colour by
-                // multiplying. A coloured atlas could only ever be one palette.
-                .foregroundColor: UIColor.white,
-            ]
+            // A CGContext has its origin at the bottom left and UIKit text
+            // drawing assumes the top left, so without this flip every glyph
+            // renders upside down.
+            ctx.translateBy(x: 0, y: CGFloat(height))
+            ctx.scaleBy(x: 1, y: -1)
+
+            UIGraphicsPushContext(ctx)
+            defer { UIGraphicsPopContext() }
 
             for (i, ch) in Ramp.characters.enumerated() {
                 let col = i % cols
@@ -88,26 +110,36 @@ final class FontAtlas {
                 let s = String(ch)
                 let bounds = s.size(withAttributes: attributes)
                 // Centred in its cell, so a glyph's drawn position is its
-                // centre and the physics can rotate or scale around it without
-                // the character sliding off its own anchor.
+                // centre and the physics can move it without the character
+                // sliding off its own anchor.
                 let origin = CGPoint(
-                    x: CGFloat(col) * cell + (cell - bounds.width) / 2,
-                    y: CGFloat(row) * cell + (cell - bounds.height) / 2
+                    x: CGFloat(col) * FontAtlas.cellPixels + (FontAtlas.cellPixels - bounds.width) / 2,
+                    y: CGFloat(row) * FontAtlas.cellPixels + (FontAtlas.cellPixels - bounds.height) / 2
                 )
                 s.draw(at: origin, withAttributes: attributes)
             }
+            return true
         }
+        guard drew else { return nil }
 
-        guard let cgImage = image.cgImage else { return nil }
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba8Unorm,
+            width: width,
+            height: height,
+            mipmapped: false
+        )
+        descriptor.usage = .shaderRead
+        descriptor.storageMode = .shared
+        guard let tex = device.makeTexture(descriptor: descriptor) else { return nil }
 
-        let loader = MTKTextureLoader(device: device)
-        let options: [MTKTextureLoader.Option: Any] = [
-            .SRGB: false,
-            .textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue),
-            .textureStorageMode: NSNumber(value: MTLStorageMode.private.rawValue),
-        ]
-        guard let tex = try? loader.newTexture(cgImage: cgImage, options: options) else {
-            return nil
+        pixels.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress else { return }
+            tex.replace(
+                region: MTLRegionMake2D(0, 0, width, height),
+                mipmapLevel: 0,
+                withBytes: base,
+                bytesPerRow: bytesPerRow
+            )
         }
 
         self.texture = tex
