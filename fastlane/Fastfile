@@ -86,11 +86,13 @@ platform :ios do
     #
     # Store/signing.py generates the key locally, has Apple sign it, and stores
     # the result as a .p12 in GitHub secrets. One identity, reused forever.
+    # No :adhoc or :development arguments, not even set to false. fastlane
+    # treats their presence as selecting that profile type and refuses with
+    # "You can't enable both :development and :adhoc". Absent, it produces the
+    # App Store profile, which is what is wanted.
     get_provisioning_profile(
       api_key: api_key,
       app_identifier: APP_IDENTIFIER,
-      adhoc: false,
-      development: false,
       force: true
     )
     profile_name = lane_context[SharedValues::SIGH_NAME]
