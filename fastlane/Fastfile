@@ -75,11 +75,13 @@ platform :ios do
     #
     # Asking for the distribution certificate and an App Store profile directly
     # sidesteps the development step that cannot succeed.
+    # No keychain arguments. setup_ci has already created a temporary keychain,
+    # unlocked it and made it the default, so passing a path of my own was both
+    # unnecessary and wrong: the guessed path did not exist and fastlane
+    # rejected it as an invalid parameter.
     get_certificates(
       api_key: api_key,
-      development: false,
-      keychain_path: ENV["MATCH_KEYCHAIN_NAME"] || "#{ENV['HOME']}/Library/Keychains/fastlane_tmp_keychain-db",
-      keychain_password: ""
+      development: false
     )
     get_provisioning_profile(
       api_key: api_key,
