@@ -143,8 +143,11 @@ jobs:
             exit 1
           fi
 
+      # Only the screenshots action captures. dry_run and release use the
+      # committed images in fastlane/screenshots, so a signing retry does not
+      # pay ten minutes to regenerate pictures nobody asked to change.
       - name: Capture screenshots
-        if: ${{ inputs.action != 'compile' }}
+        if: ${{ inputs.action == 'screenshots' }}
         run: fastlane screenshots
 
       - name: Upload screenshots as an artifact
