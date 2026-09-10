@@ -84,10 +84,23 @@ jobs:
       # whatever version it was copied at.
       - name: Fetch fastlane's SnapshotHelper
         run: |
-          fastlane snapshot init || true
-          if [ ! -f Tests/ScreenshotTests/SnapshotHelper.swift ]; then
-            cp "$(gem environment gemdir)"/gems/fastlane-*/snapshot/lib/assets/SnapshotHelper.swift               Tests/ScreenshotTests/SnapshotHelper.swift
+          # SnapshotHelper.swift defines setupSnapshot() and snapshot(), which
+          # the UI test calls. It ships inside the fastlane gem rather than as a
+          # package, so it is copied into the test target instead of committed
+          # and left to rot at whatever version it was copied at.
+          #
+          # Resolved to exactly one path: the runner can have several fastlane
+          # gem versions installed, and an unquoted glob then hands `cp` three
+          # arguments, which fails with "is not a directory" rather than
+          # anything about there being two matches.
+          src=$(ls "$(gem environment gemdir)"/gems/fastlane-*/snapshot/lib/assets/SnapshotHelper.swift 2>/dev/null | sort -V | tail -1)
+          if [ -z "$src" ]; then
+            echo "SnapshotHelper.swift not found in the fastlane gem"
+            find "$(gem environment gemdir)/gems" -name SnapshotHelper.swift | head
+            exit 1
           fi
+          echo "using $src"
+          cp "$src" Tests/ScreenshotTests/SnapshotHelper.swift
           test -f Tests/ScreenshotTests/SnapshotHelper.swift
 
       - name: Generate the Xcode project
