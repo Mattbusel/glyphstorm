@@ -26,7 +26,7 @@ from pathlib import Path
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives.serialization import pkcs12
+from cryptography.hazmat.primitives.serialization import pkcs12, PrivateFormat
 from cryptography.x509.oid import NameOID
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -104,14 +104,24 @@ def create():
     # Apple returns the signed certificate as base64 DER.
     cert = x509.load_der_x509_certificate(base64.b64decode(content))
 
+    # Legacy PKCS#12: 3DES with a SHA-1 HMAC.
+    #
+    # Not BestAvailableEncryption, which produces the AES-256 form. macOS
+    # `security import` cannot read that and reports it as "MAC verification
+    # failed during PKCS12 import (wrong password?)", which sends you hunting
+    # for a password problem that does not exist.
+    encryption = (
+        PrivateFormat.PKCS12.encryption_builder()
+        .key_cert_algorithm(pkcs12.PBES.PBESv1SHA1And3KeyTripleDESCBC)
+        .hmac_hash(hashes.SHA1())
+        .build(P12_PASSWORD.encode())
+    )
     blob = pkcs12.serialize_key_and_certificates(
         name=b"Glyphstorm Distribution",
         key=key,
         cert=cert,
         cas=None,
-        encryption_algorithm=serialization.BestAvailableEncryption(
-            P12_PASSWORD.encode()
-        ),
+        encryption_algorithm=encryption,
     )
 
     p12 = OUT / "distribution.p12"
