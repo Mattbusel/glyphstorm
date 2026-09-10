@@ -129,11 +129,24 @@ targets:
         # "Cannot code sign because the target does not have an Info.plist file"
         # while the app itself compiled perfectly.
         GENERATE_INFOPLIST_FILE: YES
+        # Never signed with a real identity. It only ever runs on a simulator.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+        DEVELOPMENT_TEAM: ""
 
 schemes:
   ASCIIMotion:
     build:
       targets:
+        # The app is built for every action; the test bundle only for testing.
+        #
+        # `all` on the test target pulled it into the archive, and a test bundle
+        # signs with a *development* profile, which needs registered devices.
+        # That is where "Your team has no devices from which to generate a
+        # provisioning profile" comes from during an App Store archive: nothing
+        # to do with distribution signing, which needs no devices at all.
         ASCIIMotion: all
         ASCIIMotionUITests: [test]
     run:
