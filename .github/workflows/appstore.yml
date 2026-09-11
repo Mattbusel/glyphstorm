@@ -20,6 +20,7 @@ on:
         options:
           - compile       # build only, ~2 min, no simulator boot
           - screenshots   # capture only, download them as an artifact
+          - review_video  # the whole app from the home screen, for App Review
           - dry_run       # build and upload everything, do not submit
           - release       # build, upload and submit for review
 
@@ -149,6 +150,58 @@ jobs:
       - name: Capture screenshots
         if: ${{ inputs.action == 'screenshots' }}
         run: fastlane screenshots
+
+      # The App Review recording. Compiled first and recorded only once the
+      # test has sent the simulator to the home screen, so the video is the
+      # app launching and the whole flow, with no build time in it.
+      - name: Record the review video
+        if: ${{ inputs.action == 'review_video' }}
+        run: |
+          set -o pipefail
+          udid=$(xcrun simctl list devices available | grep "iPhone 17 Pro Max (" | head -1 | grep -oE "[0-9A-F-]{36}")
+          echo "recording on $udid"
+          xcrun simctl boot "$udid" 2>/dev/null || true
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl status_bar "$udid" override --time "9:41" --batteryState charged --batteryLevel 100 || true
+
+          xcodebuild build-for-testing \
+            -project ASCIIMotion.xcodeproj \
+            -scheme ASCIIMotion \
+            -destination "id=$udid" \
+            CODE_SIGNING_ALLOWED=NO | xcpretty
+
+          rm -f /tmp/review_go
+          xcodebuild test-without-building \
+            -project ASCIIMotion.xcodeproj \
+            -scheme ASCIIMotion \
+            -destination "id=$udid" \
+            -only-testing:ASCIIMotionUITests/ScreenshotTests/testReviewRecording \
+            CODE_SIGNING_ALLOWED=NO > test.log 2>&1 &
+          test_pid=$!
+
+          for i in $(seq 1 240); do [ -f /tmp/review_go ] && break; sleep 0.5; done
+          [ -f /tmp/review_go ] || echo "no start marker; recording anyway"
+
+          mkdir -p capture
+          xcrun simctl io "$udid" recordVideo --codec h264 --force capture/review.mp4 &
+          rec=$!
+
+          status=0
+          wait $test_pid || status=$?
+          sleep 1
+          kill -INT $rec 2>/dev/null || true
+          wait $rec 2>/dev/null || true
+          grep -E "Test Case|error|failed|passed" test.log | tail -20
+          ls -la capture/
+          exit $status
+
+      - name: Upload the video
+        if: ${{ always() && inputs.action == 'review_video' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: video
+          path: capture/*.mp4
+          if-no-files-found: warn
 
       - name: Upload screenshots as an artifact
         if: ${{ always() }}
