@@ -70,13 +70,17 @@ final class ScreenshotTests: XCTestCase {
         // The picker is another process and its tree is not exposed to the
         // test, so the photo is tapped by position. The one added for this run
         // is the newest, top left, under the "Private Access to Photos" banner.
-        sleep(1)
-        app.windows.firstMatch
-            .coordinate(withNormalizedOffset: CGVector(dx: 0.166, dy: 0.41))
-            .tap()
-
+        // It can sit on "Loading..." for ten seconds or more, so wait until the
+        // photo is actually drawn there, and tap again if the editor does not
+        // open.
+        let spot = CGVector(dx: 0.166, dy: 0.41)
+        waitForPhoto(at: spot, timeout: 60)
         let burst = app.buttons["BURST"]
-        XCTAssertTrue(burst.waitForExistence(timeout: 20), "editor never opened")
+        for _ in 0..<4 {
+            app.windows.firstMatch.coordinate(withNormalizedOffset: spot).tap()
+            if burst.waitForExistence(timeout: 8) { break }
+        }
+        XCTAssertTrue(burst.exists, "editor never opened")
         sleep(5)
         burst.tap()
         sleep(5)
@@ -118,6 +122,39 @@ final class ScreenshotTests: XCTestCase {
             back.tap()
         }
         sleep(3)
+    }
+
+    /// Waits until something bright is drawn at this point of the screen. The
+    /// picker's placeholder is near black; the pug photo is not.
+    @MainActor
+    private func waitForPhoto(at point: CGVector, timeout: TimeInterval) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let image = XCUIScreen.main.screenshot().image.cgImage,
+               brightness(of: image, at: point) > 200 {
+                return
+            }
+            usleep(500_000)
+        }
+    }
+
+    /// Sum of the red, green and blue values of one pixel.
+    private func brightness(of image: CGImage, at point: CGVector) -> Int {
+        let x = Int(CGFloat(image.width) * point.dx)
+        let y = Int(CGFloat(image.height) * point.dy)
+        var pixel = [UInt8](repeating: 0, count: 4)
+        pixel.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(
+                data: buffer.baseAddress, width: 1, height: 1,
+                bitsPerComponent: 8, bytesPerRow: 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return }
+            // Shift the image so the wanted pixel lands on the 1x1 context.
+            context.draw(image, in: CGRect(x: -x, y: -(image.height - 1 - y),
+                                           width: image.width, height: image.height))
+        }
+        return Int(pixel[0]) + Int(pixel[1]) + Int(pixel[2])
     }
 
     @MainActor
