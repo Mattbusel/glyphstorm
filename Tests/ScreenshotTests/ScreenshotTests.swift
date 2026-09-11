@@ -54,14 +54,12 @@ final class ScreenshotTests: XCTestCase {
     ///
     /// Starts on the home screen so the video opens with the app launching, and
     /// goes through the real photo picker rather than the demo image. The
-    /// marker file tells the workflow to start recording, so none of the build
-    /// or test runner start-up ends up in the footage.
+    /// workflow starts recording a few seconds after this runner appears, which
+    /// lands inside the pause on the home screen.
     @MainActor
     func testReviewRecording() throws {
         XCUIDevice.shared.press(.home)
-        sleep(1)
-        FileManager.default.createFile(atPath: "/tmp/review_go", contents: nil)
-        sleep(3)
+        sleep(9)
 
         let app = XCUIApplication()
         app.launch()
@@ -69,9 +67,16 @@ final class ScreenshotTests: XCTestCase {
 
         app.buttons["CHOOSE PHOTO"].firstMatch.tap()
         sleep(3)
-        let photo = firstPickerPhoto(app)
-        XCTAssertNotNil(photo, "no photo in the picker")
-        photo?.tap()
+        if let photo = firstPickerPhoto(app) {
+            photo.tap()
+        } else {
+            // The picker is another process and its tree is not always
+            // exposed. The one photo in the library sits top left.
+            print(app.debugDescription)
+            app.windows.firstMatch
+                .coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: 0.22))
+                .tap()
+        }
 
         let burst = app.buttons["BURST"]
         XCTAssertTrue(burst.waitForExistence(timeout: 20), "editor never opened")
@@ -123,7 +128,7 @@ final class ScreenshotTests: XCTestCase {
     @MainActor
     private func firstPickerPhoto(_ app: XCUIApplication) -> XCUIElement? {
         let queries = [app.scrollViews.otherElements.images, app.images, app.collectionViews.cells]
-        let deadline = Date().addingTimeInterval(20)
+        let deadline = Date().addingTimeInterval(10)
         while Date() < deadline {
             for query in queries {
                 for element in query.allElementsBoundByIndex

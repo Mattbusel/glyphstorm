@@ -170,7 +170,9 @@ jobs:
             -destination "id=$udid" \
             CODE_SIGNING_ALLOWED=NO | xcpretty
 
-          rm -f /tmp/review_go
+          # One photo in the library for the picker. Unsplash licence.
+          xcrun simctl addmedia "$udid" Tests/ReviewMedia/pug.jpg
+
           xcodebuild test-without-building \
             -project ASCIIMotion.xcodeproj \
             -scheme ASCIIMotion \
@@ -179,8 +181,13 @@ jobs:
             CODE_SIGNING_ALLOWED=NO > test.log 2>&1 &
           test_pid=$!
 
-          for i in $(seq 1 240); do [ -f /tmp/review_go ] && break; sleep 0.5; done
-          [ -f /tmp/review_go ] || echo "no start marker; recording anyway"
+          # Start once the test runner is up. The test sends the simulator home
+          # and waits there, so the recording opens on the home screen.
+          for i in $(seq 1 600); do
+            xcrun simctl spawn "$udid" launchctl list 2>/dev/null | grep -q xctrunner && break
+            sleep 0.5
+          done
+          sleep 4
 
           mkdir -p capture
           xcrun simctl io "$udid" recordVideo --codec h264 --force capture/review.mp4 &
