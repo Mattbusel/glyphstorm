@@ -59,7 +59,7 @@ final class ScreenshotTests: XCTestCase {
     @MainActor
     func testReviewRecording() throws {
         XCUIDevice.shared.press(.home)
-        sleep(9)
+        sleep(5)
 
         let app = XCUIApplication()
         app.launch()
@@ -67,16 +67,13 @@ final class ScreenshotTests: XCTestCase {
 
         app.buttons["CHOOSE PHOTO"].firstMatch.tap()
         sleep(3)
-        if let photo = firstPickerPhoto(app) {
-            photo.tap()
-        } else {
-            // The picker is another process and its tree is not always
-            // exposed. The one photo in the library sits top left.
-            print(app.debugDescription)
-            app.windows.firstMatch
-                .coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: 0.22))
-                .tap()
-        }
+        // The picker is another process and its tree is not exposed to the
+        // test, so the photo is tapped by position. The one added for this run
+        // is the newest, top left, under the "Private Access to Photos" banner.
+        sleep(1)
+        app.windows.firstMatch
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.166, dy: 0.41))
+            .tap()
 
         let burst = app.buttons["BURST"]
         XCTAssertTrue(burst.waitForExistence(timeout: 20), "editor never opened")
@@ -121,24 +118,6 @@ final class ScreenshotTests: XCTestCase {
             back.tap()
         }
         sleep(3)
-    }
-
-    /// The first real photo in the system picker. Toolbar icons are images too,
-    /// so anything small is skipped.
-    @MainActor
-    private func firstPickerPhoto(_ app: XCUIApplication) -> XCUIElement? {
-        let queries = [app.scrollViews.otherElements.images, app.images, app.collectionViews.cells]
-        let deadline = Date().addingTimeInterval(10)
-        while Date() < deadline {
-            for query in queries {
-                for element in query.allElementsBoundByIndex
-                where element.exists && element.frame.width > 60 && element.isHittable {
-                    return element
-                }
-            }
-            usleep(500_000)
-        }
-        return nil
     }
 
     @MainActor
