@@ -72,6 +72,7 @@ enum Exporter {
         size: CGSize,
         viewport: SIMD2<Float>,
         seconds: Double,
+        watermark: Bool = false,
         frameSource: @escaping (Double) -> Void,
         progress: @escaping (Double) -> Void
     ) async throws -> URL {
@@ -120,6 +121,8 @@ enum Exporter {
         guard writer.startWriting() else { throw ExportError.writerFailed }
         writer.startSession(atSourceTime: .zero)
 
+        let mark = watermark ? Self.watermark(forWidth: width) : nil
+
         let total = Int(seconds * Double(fps))
         let dt = Float(1.0 / Double(fps))
 
@@ -143,7 +146,7 @@ enum Exporter {
                 throw ExportError.renderFailed
             }
             guard let pool = adaptor.pixelBufferPool,
-                  let buffer = pixelBuffer(from: cg, pool: pool, width: width, height: height)
+                  let buffer = pixelBuffer(from: cg, pool: pool, width: width, height: height, mark: mark)
             else {
                 writer.cancelWriting()
                 throw ExportError.renderFailed
@@ -178,7 +181,8 @@ enum Exporter {
         from image: CGImage,
         pool: CVPixelBufferPool,
         width: Int,
-        height: Int
+        height: Int,
+        mark: CGImage? = nil
     ) -> CVPixelBuffer? {
         var out: CVPixelBuffer?
         guard CVPixelBufferPoolCreatePixelBuffer(nil, pool, &out) == kCVReturnSuccess,
@@ -202,6 +206,47 @@ enum Exporter {
         ) else { return nil }
 
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        if let mark {
+            // Bottom right. CoreGraphics puts the origin at the bottom left.
+            let pad = CGFloat(width) * 0.035
+            ctx.draw(mark, in: CGRect(x: CGFloat(width) - CGFloat(mark.width) - pad, y: pad,
+                                      width: CGFloat(mark.width), height: CGFloat(mark.height)))
+        }
         return buffer
+    }
+
+    /// The free tier's corner mark: the four accent squares and the name, on a
+    /// dark plate so it reads over any artwork. Small, about a quarter of the
+    /// frame's width.
+    static func watermark(forWidth width: Int) -> CGImage? {
+        let w = max(CGFloat(width) * 0.26, 80)
+        let h = w * 0.16
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = false
+        let drawn = UIGraphicsImageRenderer(size: CGSize(width: w, height: h), format: format).image { ctx in
+            let cg = ctx.cgContext
+            cg.setFillColor(UIColor(red: 0.043, green: 0.039, blue: 0.063, alpha: 0.72).cgColor)
+            cg.fill(CGRect(x: 0, y: 0, width: w, height: h))
+            let sq = h * 0.28
+            let colors: [UIColor] = [
+                UIColor(red: 0.98, green: 0.29, blue: 0.24, alpha: 1),
+                UIColor(red: 1.00, green: 0.72, blue: 0.16, alpha: 1),
+                UIColor(red: 0.93, green: 0.24, blue: 0.62, alpha: 1),
+                UIColor(red: 0.20, green: 0.86, blue: 0.90, alpha: 1),
+            ]
+            for (i, c) in colors.enumerated() {
+                cg.setFillColor(c.cgColor)
+                cg.fill(CGRect(x: h * 0.3 + CGFloat(i) * sq * 1.25, y: (h - sq) / 2, width: sq, height: sq))
+            }
+            let text = NSAttributedString(string: "GLYPHSTORM", attributes: [
+                .font: UIFont.monospacedSystemFont(ofSize: h * 0.46, weight: .heavy),
+                .foregroundColor: UIColor.white.withAlphaComponent(0.92),
+                .kern: h * 0.06,
+            ])
+            let size = text.size()
+            text.draw(at: CGPoint(x: w - size.width - h * 0.3, y: (h - size.height) / 2))
+        }
+        return drawn.cgImage
     }
 }

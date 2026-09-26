@@ -10,6 +10,7 @@ struct EditorView: View {
     var onBack: () -> Void
 
     @StateObject private var model = EditorModel()
+    @EnvironmentObject private var pro: Pro
     @State private var shareItem: ShareItem?
 
     var body: some View {
@@ -101,9 +102,26 @@ struct EditorView: View {
                     .tint(Theme.color(for: model.style))
             }
 
-            Button("EXPORT") { model.export() }
-                .buttonStyle(BlockButtonStyle(fill: Theme.cyan))
-                .disabled(model.isExporting)
+            VStack(spacing: 10) {
+                Button("EXPORT") { model.export(pro: pro.unlocked) }
+                    .buttonStyle(BlockButtonStyle(fill: Theme.cyan))
+                    .disabled(model.isExporting)
+
+                if !pro.unlocked {
+                    Button {
+                        pro.showPaywall = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("FREE EXPORT: CORNER MARK, 5 S VIDEO.")
+                                .foregroundStyle(Theme.inkDim)
+                            Text("GO PRO")
+                                .foregroundStyle(Theme.amber)
+                        }
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .kerning(0.5)
+                    }
+                }
+            }
         }
         .padding(.horizontal, 20)
         .padding(.top, 18)

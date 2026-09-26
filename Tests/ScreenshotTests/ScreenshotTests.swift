@@ -48,6 +48,133 @@ final class ScreenshotTests: XCTestCase {
             sleep(2)
             snapshot("04_Home")
         }
+        app.terminate()
+
+        // The Pro paywall, for the in-app purchase's review screenshot. Not a
+        // store screenshot: it is removed before fastlane/screenshots is committed.
+        let paywall = XCUIApplication()
+        setupSnapshot(paywall)
+        paywall.launchArguments += ["-screenshots", "-showPaywall"]
+        paywall.launch()
+        sleep(4)
+        snapshot("05_Paywall")
+    }
+
+    /// The whole app as a customer uses it, for the App Review recording.
+    ///
+    /// Starts on the home screen so the video opens with the app launching, and
+    /// goes through the real photo picker rather than the demo image. The
+    /// workflow starts recording a few seconds after this runner appears, which
+    /// lands inside the pause on the home screen.
+    @MainActor
+    func testReviewRecording() throws {
+        XCUIDevice.shared.press(.home)
+        sleep(5)
+
+        let app = XCUIApplication()
+        app.launch()
+        sleep(3)
+
+        app.buttons["CHOOSE PHOTO"].firstMatch.tap()
+        sleep(3)
+        // The picker is another process and its tree is not exposed to the
+        // test, so the photo is tapped by position. The one added for this run
+        // is the newest, top left, under the "Private Access to Photos" banner.
+        // It can sit on "Loading..." for ten seconds or more, so wait until the
+        // photo is actually drawn there, and tap again if the editor does not
+        // open.
+        let spot = CGVector(dx: 0.166, dy: 0.41)
+        waitForPhoto(at: spot, timeout: 60)
+        let burst = app.buttons["BURST"]
+        for _ in 0..<4 {
+            app.windows.firstMatch.coordinate(withNormalizedOffset: spot).tap()
+            if burst.waitForExistence(timeout: 8) { break }
+        }
+        XCTAssertTrue(burst.exists, "editor never opened")
+        sleep(5)
+        burst.tap()
+        sleep(5)
+        tapStyle(app, "DRIFT")
+        sleep(5)
+        tapStyle(app, "FLUID")
+        sleep(2)
+
+        // Amount up, then characters small and back to medium.
+        let sliders = app.sliders
+        if sliders.count >= 2 {
+            sliders.element(boundBy: 0).adjust(toNormalizedSliderPosition: 1.0)
+            sleep(3)
+            sliders.element(boundBy: 1).adjust(toNormalizedSliderPosition: 0.1)
+            sleep(3)
+            sliders.element(boundBy: 1).adjust(toNormalizedSliderPosition: 0.4)
+            sleep(2)
+        }
+
+        app.buttons["EXPORT"].tap()
+        let rendering = app.staticTexts["RENDERING"]
+        if rendering.waitForExistence(timeout: 5) {
+            _ = rendering.waitForNonExistence(timeout: 120)
+        }
+        // The share sheet, which is where the export goes.
+        sleep(4)
+        let close = app.buttons["Close"]
+        if close.exists {
+            close.tap()
+        } else {
+            app.windows.firstMatch
+                .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08))
+                .tap()
+        }
+        sleep(2)
+
+        let back = app.buttons["← NEW"]
+        if back.waitForExistence(timeout: 5) {
+            back.tap()
+        }
+        sleep(3)
+
+        // The optional Pro purchase: where it lives, what it offers, Restore.
+        let pro = app.buttons["GLYPHSTORM PRO"]
+        if pro.waitForExistence(timeout: 5) {
+            pro.tap()
+            sleep(6)
+            let close = app.buttons["CLOSE"]
+            if close.waitForExistence(timeout: 5) { close.tap() }
+        }
+        sleep(3)
+    }
+
+    /// Waits until something bright is drawn at this point of the screen. The
+    /// picker's placeholder is near black; the pug photo is not.
+    @MainActor
+    private func waitForPhoto(at point: CGVector, timeout: TimeInterval) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let image = XCUIScreen.main.screenshot().image.cgImage,
+               brightness(of: image, at: point) > 200 {
+                return
+            }
+            usleep(500_000)
+        }
+    }
+
+    /// Sum of the red, green and blue values of one pixel.
+    private func brightness(of image: CGImage, at point: CGVector) -> Int {
+        let x = Int(CGFloat(image.width) * point.dx)
+        let y = Int(CGFloat(image.height) * point.dy)
+        var pixel = [UInt8](repeating: 0, count: 4)
+        pixel.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(
+                data: buffer.baseAddress, width: 1, height: 1,
+                bitsPerComponent: 8, bytesPerRow: 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return }
+            // Shift the image so the wanted pixel lands on the 1x1 context.
+            context.draw(image, in: CGRect(x: -x, y: -(image.height - 1 - y),
+                                           width: image.width, height: image.height))
+        }
+        return Int(pixel[0]) + Int(pixel[1]) + Int(pixel[2])
     }
 
     @MainActor

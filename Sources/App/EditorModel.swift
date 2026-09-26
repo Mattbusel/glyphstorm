@@ -205,7 +205,7 @@ final class EditorModel: ObservableObject {
     ///
     /// A photo becomes a short video of its motion, because the motion is the
     /// product. A video becomes a video of the same length, capped.
-    func export() {
+    func export(pro: Bool) {
         guard !isExporting else { return }
         guard let renderer, let source, built, !renderer.field.isEmpty else {
             errorMessage = "Nothing to export yet."
@@ -222,7 +222,8 @@ final class EditorModel: ObservableObject {
         // Twice the preview's points, capped, so the artwork is sharp on a
         // retina screen without asking a phone to encode 4K.
         let previewSize = viewSize
-        let scale: CGFloat = 2
+        // Pro renders at twice the preview's points; free at the preview's own.
+        let scale: CGFloat = pro ? 2 : 1
         let pixels = CGSize(
             width: min(previewSize.width * scale, 1440),
             height: min(previewSize.height * scale, 2560)
@@ -234,7 +235,7 @@ final class EditorModel: ObservableObject {
         if case .video(let video) = source {
             let duration = video.durationSeconds
             seconds = duration.isFinite && duration > 0
-                ? min(duration, Exporter.maxSeconds)
+                ? min(duration, pro ? Exporter.maxSeconds : Pro.freeVideoSeconds)
                 : Exporter.stillMotionSeconds
             video.pause()
             reader = ExportFrameReader(asset: video.asset)
@@ -256,6 +257,7 @@ final class EditorModel: ObservableObject {
                     size: pixels,
                     viewport: viewport,
                     seconds: seconds,
+                    watermark: !pro,
                     frameSource: { _ in
                         guard let capturedReader else { return }
                         // One source frame per output frame. When the source

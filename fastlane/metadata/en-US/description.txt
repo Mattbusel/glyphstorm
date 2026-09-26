@@ -19,8 +19,17 @@ VIDEO WORKS TOO
 
 Feed it a video and the characters chase the moving image instead of being redrawn each frame, so the motion of your footage and the motion of the field happen at the same time.
 
+FREE TO MAKE, PRO TO POST CLEAN
+
+Glyphstorm is free. Every photo, every video, all three motions and export are yours without paying. Free exports carry a small GLYPHSTORM mark in the corner, and videos stop at five seconds.
+
+Glyphstorm Pro is one optional, one-time purchase:
+- No corner mark
+- Rendered at twice the resolution
+- Videos up to fifteen seconds
+
+No subscription. Buy it once and it is yours.
+
 BUILT TO BE SIMPLE
 
-Two screens. No account, no sign-up, no subscription. Everything runs on your device, nothing is uploaded, and nothing is collected. The app never even asks for photo library access, because it uses the system picker and only ever sees the one file you choose.
-
-One purchase. That's it.
+Two screens. No account, no sign-up. Everything runs on your device, nothing is uploaded, and nothing is collected. The app never even asks for photo library access, because it uses the system picker and only ever sees the one file you choose.
