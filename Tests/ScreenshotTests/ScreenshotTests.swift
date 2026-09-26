@@ -48,6 +48,16 @@ final class ScreenshotTests: XCTestCase {
             sleep(2)
             snapshot("04_Home")
         }
+        app.terminate()
+
+        // The Pro paywall, for the in-app purchase's review screenshot. Not a
+        // store screenshot: it is removed before fastlane/screenshots is committed.
+        let paywall = XCUIApplication()
+        setupSnapshot(paywall)
+        paywall.launchArguments += ["-screenshots", "-showPaywall"]
+        paywall.launch()
+        sleep(4)
+        snapshot("05_Paywall")
     }
 
     /// The whole app as a customer uses it, for the App Review recording.
@@ -120,6 +130,16 @@ final class ScreenshotTests: XCTestCase {
         let back = app.buttons["← NEW"]
         if back.waitForExistence(timeout: 5) {
             back.tap()
+        }
+        sleep(3)
+
+        // The optional Pro purchase: where it lives, what it offers, Restore.
+        let pro = app.buttons["GLYPHSTORM PRO"]
+        if pro.waitForExistence(timeout: 5) {
+            pro.tap()
+            sleep(6)
+            let close = app.buttons["CLOSE"]
+            if close.waitForExistence(timeout: 5) { close.tap() }
         }
         sleep(3)
     }

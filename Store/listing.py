@@ -105,6 +105,13 @@ def age_rating():
     print("  age rating declared (4+)" if result is not None else "  age rating failed")
 
 
+def _review_notes() -> str:
+    """Everything under the --- divider in Store/review-notes.md."""
+    text = (Path(__file__).resolve().parent / "review-notes.md").read_text(encoding="utf-8")
+    parts = text.split("\n---\n", 1)
+    return (parts[1] if len(parts) > 1 else text).strip()
+
+
 def review_details():
     """Reviewer contact details, and a note saying how to drive the app."""
     app = find_app()
@@ -112,7 +119,7 @@ def review_details():
         sys.exit("no app record yet")
     version = ensure_version(app["id"])
     if not version:
-        print("  could not resolve version 1.0")
+        print("  could not resolve the version")
         return
 
     attributes = {
@@ -122,16 +129,7 @@ def review_details():
         # No account, so nothing to sign in with. Saying so outright saves a
         # round trip with a reviewer asking for test credentials.
         "demoAccountRequired": False,
-        "notes": (
-            "No account or login is required.\n\n"
-            "Tap Choose Photo or Choose Video and pick any item. The picture is "
-            "rebuilt out of text characters that have weight and move. Use the "
-            "three Style buttons and the two sliders to change the effect, then "
-            "tap Export to render it and open the share sheet.\n\n"
-            "The app requests no permissions. It uses the system photo picker, "
-            "so it receives only the single item you select. All processing is "
-            "on device, nothing is uploaded, and no data is collected."
-        ),
+        "notes": _review_notes(),
     }
     phone = os.environ.get("ASC_CONTACT_PHONE", "").strip()
     if phone:
@@ -206,7 +204,7 @@ def screenshots():
         sys.exit("no app record yet")
     version = ensure_version(app["id"])
     if not version:
-        sys.exit("could not resolve version 1.0")
+        sys.exit("could not resolve the version")
 
     root = Path(__file__).resolve().parent.parent / "fastlane" / "screenshots"
     shots = sorted(p for p in root.rglob("*.png"))

@@ -29,6 +29,7 @@ struct PickedMovie: Transferable {
 /// Screen one. A title and two buttons.
 struct HomeView: View {
     var onPick: (Source) -> Void
+    @EnvironmentObject private var pro: Pro
 
     @State private var photoItem: PhotosPickerItem?
     @State private var videoItem: PhotosPickerItem?
@@ -119,7 +120,18 @@ struct HomeView: View {
                     Color.clear.frame(height: 42)
                 }
 
-                Spacer().frame(height: 24)
+                Button {
+                    pro.showPaywall = true
+                } label: {
+                    Text(pro.unlocked ? "PRO UNLOCKED" : "GLYPHSTORM PRO")
+                        .font(.system(size: 12, weight: .heavy, design: .monospaced))
+                        .kerning(2)
+                        .foregroundStyle(pro.unlocked ? Theme.inkDim : Theme.amber)
+                        .padding(.vertical, 8)
+                }
+                .disabled(pro.unlocked)
+
+                Spacer().frame(height: 12)
             }
         }
         .onChange(of: photoItem) { _, item in

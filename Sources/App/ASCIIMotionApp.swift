@@ -4,9 +4,12 @@ import UIKit
 
 @main
 struct ASCIIMotionApp: App {
+    @StateObject private var pro = Pro()
+
     var body: some Scene {
         WindowGroup {
             RootView()
+                .environmentObject(pro)
                 .preferredColorScheme(.dark)
                 // The screenshot tests drive the app through a launch argument
                 // rather than through the photo picker, because the picker is a
@@ -23,6 +26,7 @@ struct ASCIIMotionApp: App {
 /// only be on one of them.
 struct RootView: View {
     @State private var source: Source?
+    @EnvironmentObject private var pro: Pro
     @Environment(\.isScreenshotRun) private var isScreenshotRun
 
     var body: some View {
@@ -36,6 +40,9 @@ struct RootView: View {
                 }
                 .transition(.opacity)
             }
+        }
+        .sheet(isPresented: $pro.showPaywall) {
+            PaywallView().environmentObject(pro)
         }
         .task {
             // Screenshot runs skip the picker and load a bundled still, so the
